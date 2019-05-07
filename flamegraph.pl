@@ -113,7 +113,9 @@ my $timemax;                    # (override the) sum of the counts
 my $factor = 1;                 # factor to scale counts by
 my $hash = 0;                   # color by function name
 my $palette = 0;                # if we use consistent palettes (default off)
+my $regex_palette = 0;          # if we use consistent regex palettes (default off)
 my %palette_map;                # palette map hash
+my %palette_regex_map;          # palette regular expression map hash
 my $pal_file = "palette.map";   # palette map file name
 my $stackreverse = 0;           # reverse stack order, switching merge end
 my $inverted = 0;               # icicle graph
@@ -146,6 +148,8 @@ USAGE: $0 [options] infile > outfile.svg\n
 	                 # (default), blue, green, grey; flat colors use "#rrggbb"
 	--hash           # colors are keyed by function name hash
 	--cp             # use consistent palette (palette.map)
+	--cpre           # use consistent regular expression palette
+	                 # (palette.map)
 	--reverse        # generate stack-reversed flame graph
 	--inverted       # icicle graph
 	--flamechart     # produce a flame chart (sort by time, do not merge stacks)
@@ -177,6 +181,7 @@ GetOptions(
 	'bgcolors=s'  => \$bgcolors,
 	'hash'        => \$hash,
 	'cp'          => \$palette,
+	'cpre'        => \$regex_palette,
 	'reverse'     => \$stackreverse,
 	'inverted'    => \$inverted,
 	'flamechart'  => \$flamechart,
@@ -524,12 +529,20 @@ sub color_scale {
 
 sub color_map {
 	my ($colors, $func) = @_;
+
 	if (exists $palette_map{$func}) {
 		return $palette_map{$func};
-	} else {
-		$palette_map{$func} = color($colors, $hash, $func);
-		return $palette_map{$func};
 	}
+
+	foreach my $re (keys %palette_regex_map) {
+		if ($func =~ $re) {
+			$palette_map{$func} = $palette_regex_map{$re};
+			return $palette_map{$func};
+		}
+	}
+
+	$palette_map{$func} = color($colors, $hash, $func);
+	return $palette_map{$func};
 }
 
 sub write_palette {
@@ -546,7 +559,11 @@ sub read_palette {
 	while ( my $line = <FILE>) {
 		chomp($line);
 		(my $key, my $value) = split("->",$line);
-		$palette_map{$key}=$value;
+		if ($regex_palette) {
+			$palette_regex_map{$key}=$value;
+		} else {
+			$palette_map{$key}=$value;
+		}
 	}
 	close(FILE)
 	}
@@ -1067,7 +1084,7 @@ $im->stringTTF("unzoom", $xpad, $fontsize * 2, "Reset Zoom", 'class="hide"');
 $im->stringTTF("search", $imagewidth - $xpad - 100, $fontsize * 2, "Search");
 $im->stringTTF("matched", $imagewidth - $xpad - 100, $imageheight - ($ypad2 / 2), " ");
 
-if ($palette) {
+if ($palette || $regex_palette) {
 	read_palette();
 }
 
@@ -1128,7 +1145,7 @@ while (my ($id, $node) = each %Node) {
 		$color = $dgrey;
 	} elsif (defined $delta) {
 		$color = color_scale($delta, $maxdelta);
-	} elsif ($palette) {
+	} elsif ($palette || $regex_palette) {
 		$color = color_map($colors, $func);
 	} else {
 		$color = color($colors, $hash, $func);
