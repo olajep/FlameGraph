@@ -120,6 +120,7 @@ my $pal_file = "palette.map";   # palette map file name
 my $stackreverse = 0;           # reverse stack order, switching merge end
 my $inverted = 0;               # icicle graph
 my $flamechart = 0;             # produce a flame chart (sort by time, do not merge stacks)
+my $timestamped = 0;            # trace uses timestamp, not samples.
 my $negate = 0;                 # switch differential hues
 my $titletext = "";             # centered heading
 my $titledefault = "Flame Graph";	# overwritten by --title
@@ -153,6 +154,7 @@ USAGE: $0 [options] infile > outfile.svg\n
 	--reverse        # generate stack-reversed flame graph
 	--inverted       # icicle graph
 	--flamechart     # produce a flame chart (sort by time, do not merge stacks)
+	--timestamp      # trace uses timestamps instead of sample count
 	--negate         # switch differential hues (blue<->red)
 	--notes TEXT     # add notes comment in SVG (for debugging)
 	--help           # this message
@@ -185,6 +187,7 @@ GetOptions(
 	'reverse'     => \$stackreverse,
 	'inverted'    => \$inverted,
 	'flamechart'  => \$flamechart,
+	'timestamp'   => \$timestamped,
 	'negate'      => \$negate,
 	'notes=s'     => \$notestext,
 	'help'        => \$help,
@@ -638,6 +641,47 @@ foreach (<>) {
 	} else {
 		unshift @Data, $line;
 	}
+}
+
+if ($timestamped) {
+	# Last column is a timestamp (relative or absolute) and not #samples
+	# Convert to "samples" by taking the difference between the current
+	# line and the previous line.
+	my @adjusted;
+	my $prev_timestamp;
+	my $prev_timestamp2;
+	foreach (@Data) {
+		chomp;
+		# process: folded_stack timestamp
+		# eg: func_a;func_b;func_c 31
+		my ($stack, $timestamp) = (/^(.*)\s+?(\d+(?:\.\d*)?)$/);
+		my $timestamp2 = undef;
+		unless (defined $timestamp and defined $stack) {
+			next;
+		}
+		# Handle case with differential column
+		if ($stack =~ /^(.*)\s+?(\d+(?:\.\d*)?)$/) {
+			$timestamp2 = $timestamp;
+			($stack, $timestamp) = $stack =~ (/^(.*)\s+?(\d+(?:\.\d*)?)$/);
+			unless (defined $prev_timestamp) {
+				$prev_timestamp = $timestamp;
+			}
+			unless (defined $prev_timestamp2) {
+				$prev_timestamp2 = $timestamp2;
+			}
+			my $delta = abs($timestamp - $prev_timestamp);
+			my $delta2 = abs($timestamp2 - $prev_timestamp2);
+			unshift @adjusted, "$stack $delta $delta2";
+		} else {
+			unless (defined $prev_timestamp) {
+				$prev_timestamp = $timestamp;
+			}
+			my $delta = abs($timestamp - $prev_timestamp);
+			$prev_timestamp = $timestamp;
+			unshift @adjusted, "$stack $delta";
+		}
+	}
+	@Data = reverse @adjusted;
 }
 
 if ($flamechart) {
