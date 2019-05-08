@@ -113,6 +113,7 @@ my $timemax;                    # (override the) sum of the counts
 my $factor = 1;                 # factor to scale counts by
 my $hash = 0;                   # color by function name
 my $palette = 0;                # if we use consistent palettes (default off)
+my $save_palette = 0;           # write the palette to file (default off)
 my $regex_palette = 0;          # if we use consistent regex palettes (default off)
 my %palette_map;                # palette map hash
 my %palette_regex_map;          # palette regular expression map hash
@@ -142,6 +143,7 @@ USAGE: $0 [options] infile > outfile.svg\n
 	--fontsize NUM   # font size (default 12)
 	--countname TEXT # count type label (default "samples")
 	--nametype TEXT  # name type label (default "Function:")
+	--factor NUM     # factor to scale counts by (default 1.0)
 	--colors PALETTE # set color palette. choices are: hot (default), mem,
 	                 # io, wakeup, chain, java, js, perl, red, green, blue,
 	                 # aqua, yellow, purple, orange
@@ -151,6 +153,7 @@ USAGE: $0 [options] infile > outfile.svg\n
 	--cp             # use consistent palette (palette.map)
 	--cpre           # use consistent regular expression palette
 	                 # (palette.map)
+	--savepalette    # save the palette (palette.map)
 	--reverse        # generate stack-reversed flame graph
 	--inverted       # icicle graph
 	--flamechart     # produce a flame chart (sort by time, do not merge stacks)
@@ -184,6 +187,7 @@ GetOptions(
 	'hash'        => \$hash,
 	'cp'          => \$palette,
 	'cpre'        => \$regex_palette,
+	'savepalette' => \$save_palette,
 	'reverse'     => \$stackreverse,
 	'inverted'    => \$inverted,
 	'flamechart'  => \$flamechart,
@@ -1214,7 +1218,7 @@ $im->group_end();
 
 print $im->svg;
 
-if ($palette) {
+if ($save_palette) {
 	write_palette();
 }
 
